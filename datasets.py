@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-
+from sklearn.model_selection import train_test_split
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, train_data, test_data, normal=[0],  train=True):
@@ -30,8 +30,17 @@ class Dataset(torch.utils.data.Dataset):
             self.targets = np.where(np.isin(self.targets, abnormal),1,0)
             self.targets = torch.Tensor(self.targets)
             
-                    
-
+            #Ratio
+            ratio = 0.35
+            indices = np.nonzero(self.targets)
+            Y = self.targets[indices].squeeze(1)
+            
+            indices, _ = train_test_split(indices,test_size=(1-ratio), stratify=Y)
+            indices = tuple([list(t) for t in zip(*indices)] )
+            zero_indices = np.where(self.targets==0)
+            self.data = torch.cat([self.data[indices], self.data[zero_indices]])
+            self.targets = torch.cat([self.targets[indices],self.targets[zero_indices]])
+            
         self.data = self.data/255.0
         self.data = self.data.view(-1,28*28).float()
         
