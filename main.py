@@ -153,7 +153,7 @@ def main():
                 print("{}/{} Train Avg Loss: {}".format(epoch+1,args.epochs,avg_cost))
                 
                 #Test
-                TEST(model, test_loader, device, writer, epoch,valid=True)
+                TEST(model, test_loader, device, epoch=epoch, writer=writer, valid=True)
         
         torch.save(model.state_dict(),'save_model/model.pth')
         
@@ -167,7 +167,7 @@ def main():
         
     if args.test == True:  
         model.load_state_dict(torch.load('save_model/'+str(args.load_model)))
-        TEST(model, test_loader, device, writer)
+        TEST(model, test_loader, device, writer=writer)
         
 
                     
