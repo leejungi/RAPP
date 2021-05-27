@@ -1,0 +1,4 @@
+save_mode/
+__pycache__/
+MNIST/
+tf_board/
