@@ -14,7 +14,7 @@ def block(in_size, out_size, act=True):
             )
 
 class AE(nn.Module):
-    def __init__(self, in_size, num_layer= 10, rep_dim = 100):
+    def __init__(self, in_size, num_layer= 9, rep_dim = 20):
         super(AE, self).__init__()
         
         diff = (in_size - rep_dim)/(num_layer+1)

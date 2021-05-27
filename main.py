@@ -21,7 +21,7 @@ parser = argparse.ArgumentParser(description='RAPP')
 #Model params
 parser.add_argument('--device', type=str, default='cuda', help="Device name for torch executing environment e.g) cpu, cuda")
 parser.add_argument('--batch_size', type=int, default=256, help="Batch size")
-parser.add_argument('--epochs', type=int, default=500, help="AutoEncoder Num of Epochs")
+parser.add_argument('--epochs', type=int, default=2000, help="AutoEncoder Num of Epochs")
 parser.add_argument('--learning_rate', type=float, default=1e-3, help="AutoEncoder Learning Rate")
 parser.add_argument('--weight_decay', type=float, default=0, help="AutoEncoder Weight decay in optimizer")
 
@@ -36,7 +36,7 @@ parser.add_argument('--test', type=int, default=1, help="Test start Flag")
 parser.add_argument('--load_model', type=str, default="model.pth", help="Load model name")
 args = parser.parse_args()
 
-def sap(X, recon, model):
+def Ssap(X, recon, model):
     model.eval()
     with torch.no_grad():
         diff = [X-recon]
@@ -44,13 +44,15 @@ def sap(X, recon, model):
             X = layer(X)
             recon = layer(recon)
             diff.append(recon-X)
-    diff = torch.cat(diff[1:], 1)
-    return [torch.mean(diff**2,1)]
+    sap_diff = torch.cat(diff[1:], 1)
+    rsap_diff = torch.cat(diff[0:], 1)
+    return [torch.mean(sap_diff**2,1)], [torch.mean(rsap_diff**2,1)]
 
-def TEST(model, test_loader, device, writer=None, valid=False):
+def TEST(model, test_loader, device, epoch=None,writer=None, valid=False):
     
     recon = []
     sap_list = []
+    rsap_list = []
     label = []
     
     model.eval()
@@ -60,15 +62,22 @@ def TEST(model, test_loader, device, writer=None, valid=False):
             Y = Y.to(device)
             hypothesis = model(X)
             recon += [torch.mean((hypothesis - X)**2,1)]
-            sap_list += sap(X,hypothesis,model)
+            sap, rsap = Ssap(X,hypothesis,model)
+            sap_list += sap
+            rsap_list += rsap
             label += [Y]
     recon = torch.cat(recon).to('cpu')
     sap_list = torch.cat(sap_list).to('cpu')
+    rsap_list = torch.cat(rsap_list).to('cpu')
     label = torch.cat(label).to('cpu')
     recon_auroc=roc_auc_score(label,recon)
     sap_auroc=roc_auc_score(label,sap_list)
-    print("Test recon auroc: {} sap auroc: {}".format(recon_auroc, sap_auroc))
-    
+    rsap_auroc=roc_auc_score(label,rsap_list)
+    print("Test recon auroc: {:.3f} sap auroc: {:.3f} sap auroc(with recon): {:.3f}".format(recon_auroc, sap_auroc, rsap_auroc))
+    if epoch != None:
+        writer.add_scalar('Valid/Recon AUROC', round(recon_auroc,3), epoch)
+        writer.add_scalar('Valid/Ssap AUROC', round(sap_auroc,3), epoch)
+        writer.add_scalar('Valid/Ssap(with recon) AUROC', round(rsap_auroc,3), epoch)
     if valid==True:
         hypothesis = hypothesis.view(-1,1,28,28)
         img_grid = torchvision.utils.make_grid(hypothesis)
@@ -144,7 +153,7 @@ def main():
                 print("{}/{} Train Avg Loss: {}".format(epoch+1,args.epochs,avg_cost))
                 
                 #Test
-                TEST(model, test_loader, device, writer, valid=True)
+                TEST(model, test_loader, device, writer, epoch,valid=True)
         
         torch.save(model.state_dict(),'save_model/model.pth')
         
