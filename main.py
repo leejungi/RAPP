@@ -21,7 +21,7 @@ parser = argparse.ArgumentParser(description='RAPP')
 #Model params
 parser.add_argument('--device', type=str, default='cuda', help="Device name for torch executing environment e.g) cpu, cuda")
 parser.add_argument('--batch_size', type=int, default=256, help="Batch size")
-parser.add_argument('--epochs', type=int, default=2000, help="AutoEncoder Num of Epochs")
+parser.add_argument('--epochs', type=int, default=200, help="AutoEncoder Num of Epochs")
 parser.add_argument('--learning_rate', type=float, default=1e-3, help="AutoEncoder Learning Rate")
 parser.add_argument('--weight_decay', type=float, default=0, help="AutoEncoder Weight decay in optimizer")
 
@@ -75,9 +75,9 @@ def TEST(model, test_loader, device, epoch=None,writer=None, valid=False):
     rsap_auroc=roc_auc_score(label,rsap_list)
     print("Test recon auroc: {:.3f} sap auroc: {:.3f} sap auroc(with recon): {:.3f}".format(recon_auroc, sap_auroc, rsap_auroc))
     if epoch != None:
-        writer.add_scalar('Valid/Recon AUROC', round(recon_auroc,3), epoch)
-        writer.add_scalar('Valid/Ssap AUROC', round(sap_auroc,3), epoch)
-        writer.add_scalar('Valid/Ssap(with recon) AUROC', round(rsap_auroc,3), epoch)
+        writer.add_scalar('Valid/Recon AUROC score', round(recon_auroc,3), epoch)
+        writer.add_scalar('Valid/Ssap AUROC score', round(sap_auroc,3), epoch)
+        writer.add_scalar('Valid/Ssap(with recon) AUROC score', round(rsap_auroc,3), epoch)
     if valid==True:
         hypothesis = hypothesis.view(-1,1,28,28)
         img_grid = torchvision.utils.make_grid(hypothesis)
@@ -149,7 +149,7 @@ def main():
             # Log and test
             if (epoch+1)%args.test_interval ==0:
                 torch.save(model.state_dict(),'save_model/AE_'+str(epoch+1)+'.pth')
-                writer.add_scalar('Train/Avg Loss', round(avg_cost,2), epoch)
+                writer.add_scalar('Train/Avg Loss', round(avg_cost,7), epoch)
                 print("{}/{} Train Avg Loss: {}".format(epoch+1,args.epochs,avg_cost))
                 
                 #Test
