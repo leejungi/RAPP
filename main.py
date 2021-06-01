@@ -25,6 +25,9 @@ parser.add_argument('--epochs', type=int, default=200, help="AutoEncoder Num of 
 parser.add_argument('--learning_rate', type=float, default=1e-3, help="AutoEncoder Learning Rate")
 parser.add_argument('--weight_decay', type=float, default=0, help="AutoEncoder Weight decay in optimizer")
 parser.add_argument('--loss_fn', type=str, default='mean', help="Loss function")
+parser.add_argument('--relu', type=float, default=0.01, help="Leaky relu value")
+parser.add_argument('--start_index', type=int, default=0, help="Sap, Nap hidden reconstruction error start index")
+parser.add_argument('--end_index', type=int, default=-1, help="Sap, Nap hidden reconstruction error end index")
 
 parser.add_argument('--normal_class', type=list, default=[4], help="AutoEncoder Weight decay in optimizer")
 
@@ -37,17 +40,20 @@ parser.add_argument('--test', type=int, default=0, help="Test start Flag")
 parser.add_argument('--load_model', type=str, default="model.pth", help="Load model name")
 args = parser.parse_args()
 
-def get_layer_diff(X, recon, model):
+def get_layer_diff(X, recon, model, start_index=0, end_index=0):
+	if end_index == 0:
+		end_index = None
 	model.eval()
+#	end_index = len(model.encoder_layers) + end_index + 1
 	with torch.no_grad():
 		diff = [X-recon]
 #		for layer in model.encoder_layers[:-1]:
-		for layer in model.encoder_layers:
+		for layer in model.encoder_layers[:end_index]:
 			X = layer(X)
 			recon = layer(recon)
 			diff.append(X-recon)
-#	diff = torch.cat(diff[1:], 1)
-	diff = torch.cat(diff, 1)
+	diff = torch.cat(diff[start_index:], 1)
+#	diff = torch.cat(diff, 1)
 	return [diff]
 
 def Snap(recon, mu, s, v, loss_fn=torch.sum):
@@ -75,7 +81,7 @@ def TEST(model, train_loader, test_loader, device, epoch=None,writer=None, valid
 
 			hypothesis = model(X)
 
-			recon += get_layer_diff(X,hypothesis,model)
+			recon += get_layer_diff(X,hypothesis,model,args.start_index,args.end_index)
 
 		recon= torch.cat(recon).to('cpu')
 		mu, s, v =set_svd(recon)
@@ -86,7 +92,7 @@ def TEST(model, train_loader, test_loader, device, epoch=None,writer=None, valid
 			Y = Y.to(device)
 			hypothesis = model(X)
 			Sord_list += [loss_fn((hypothesis - X)**2,1)]
-			recon += get_layer_diff(X,hypothesis,model)
+			recon += get_layer_diff(X,hypothesis,model,args.start_index,args.end_index)
 			label += [Y]
 	recon= torch.cat(recon).to('cpu')
 
@@ -151,7 +157,7 @@ def main():
 											  shuffle=False,
 											  drop_last=False)
 	
-	model = AE(28*28).to(device)
+	model = AE(28*28, relu=args.relu).to(device)
 	
 	criterion = nn.MSELoss(reduction=args.loss_fn).to(device)
 #	criterion = nn.MSELoss().to(device)
