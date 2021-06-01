@@ -1,6 +1,6 @@
 epoch=200
 loss_fn='sum'
-relu=0.1
+relu=0.2
 start_index=0
 end_index=0
 

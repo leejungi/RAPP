@@ -178,7 +178,7 @@ def main():
 				optimizer.zero_grad()
 				hypothesis = model(X)
 				
-				cost = criterion(hypothesis, X)
+				cost = criterion(hypothesis, X)#.mean()
 				cost.backward()#Gradient calculation
 				optimizer.step()#Gradient update
 				

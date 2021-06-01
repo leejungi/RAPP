@@ -10,6 +10,7 @@ def block(in_size, out_size, relu=0.01, act=True):
 			)
 	else:
 		return nn.Sequential( nn.Linear(in_size, out_size),
+							 nn.BatchNorm1d(out_size)
 			)
 
 class AE(nn.Module):
