@@ -8,6 +8,7 @@ class Dataset(torch.utils.data.Dataset):
 		super(Dataset, self).__init__()
 		self.data = []
 		self.targets = []
+		normal = [int(i) for i in normal]
 		#Train true 
 		if train == True:
 			train_data, train_targets = train_data.data, train_data.targets
@@ -30,7 +31,7 @@ class Dataset(torch.utils.data.Dataset):
 			
 
 			#Ratio
-			ratio = 0.35
+			ratio = 0.5
 #			indices = np.nonzero(self.targets)
 #			Y = self.targets[indices].squeeze(1)
 #			
@@ -42,6 +43,7 @@ class Dataset(torch.utils.data.Dataset):
 			indices = np.where(np.isin(self.targets, abnormal))
 			Y = self.targets[indices]
 			data, _, targets,_ = train_test_split(self.data[indices], Y, test_size=(1-ratio), stratify=Y)
+#			data, _, targets,_ = train_test_split(self.data[indices], Y, test_size=(1-ratio))
 
 			indices = np.where(np.isin(self.targets, normal))
 			self.data = torch.cat([self.data[indices], data])

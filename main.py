@@ -24,15 +24,16 @@ parser.add_argument('--batch_size', type=int, default=256, help="Batch size")
 parser.add_argument('--epochs', type=int, default=200, help="AutoEncoder Num of Epochs")
 parser.add_argument('--learning_rate', type=float, default=1e-3, help="AutoEncoder Learning Rate")
 parser.add_argument('--weight_decay', type=float, default=0, help="AutoEncoder Weight decay in optimizer")
+parser.add_argument('--loss_fn', type=str, default='mean', help="Loss function")
 
-parser.add_argument('--normal_class', type=list, default=[0,2,3,4,5,6,7,8,9], help="AutoEncoder Weight decay in optimizer")
+parser.add_argument('--normal_class', type=list, default=[4], help="AutoEncoder Weight decay in optimizer")
 
 parser.add_argument('--test_interval', type=int, default=10, help="Test and model save interval during train")
-parser.add_argument('--tensorboard', action='store_true', default=True)
+parser.add_argument('--tensorboard', action='store_false', default=True)
 parser.add_argument('--seed', type=int, default=0, help='seed for random number generators')
 
 parser.add_argument('--train', type=int, default=1, help="Training start Flag")
-parser.add_argument('--test', type=int, default=1, help="Test start Flag")
+parser.add_argument('--test', type=int, default=0, help="Test start Flag")
 parser.add_argument('--load_model', type=str, default="model.pth", help="Load model name")
 args = parser.parse_args()
 
@@ -40,23 +41,19 @@ def get_layer_diff(X, recon, model):
 	model.eval()
 	with torch.no_grad():
 		diff = [X-recon]
-		for layer in model.encoder_layers[:-1]:
+#		for layer in model.encoder_layers[:-1]:
+		for layer in model.encoder_layers:
 			X = layer(X)
 			recon = layer(recon)
 			diff.append(X-recon)
-	diff = torch.cat(diff[1:], 1)
+#	diff = torch.cat(diff[1:], 1)
+	diff = torch.cat(diff, 1)
 	return [diff]
-#	 return [torch.mean(sap_diff**2,1)], [torch.mean(rsap_diff**2,1)]
 
-def Snap(recon, mu, s, v):
+def Snap(recon, mu, s, v, loss_fn=torch.sum):
 	center_recon = recon-mu
-#	inv_s = torch.inverse(torch.diag(s))
-#	nap = torch.mean(torch.mm(torch.mm(center_recon,v),inv_s)**2, 1)
 	DV = torch.mm(center_recon,v)
-#	DV_mu = DV.mean(0)
-#	DV_var = DV.var(0)
-#	nap = torch.mean((DV-DV_mu)/DV_var,1)
-	nap = torch.mean((DV/s)**2, 1)
+	nap = loss_fn((DV/s)**2, 1)
 	return nap.to('cpu')
 
 def set_svd(recon):
@@ -65,7 +62,7 @@ def set_svd(recon):
 	_, s, v = center_recon.svd()
 	return mu, s, v
 
-def TEST(model, train_loader, test_loader, device, epoch=None,writer=None, valid=False):
+def TEST(model, train_loader, test_loader, device, epoch=None,writer=None, valid=False, loss_fn=torch.sum):
 	
 	recon = []
 	Sord_list = []
@@ -88,23 +85,22 @@ def TEST(model, train_loader, test_loader, device, epoch=None,writer=None, valid
 			X = X.to(device)
 			Y = Y.to(device)
 			hypothesis = model(X)
-			Sord_list += [torch.mean((hypothesis - X)**2,1)]
+			Sord_list += [loss_fn((hypothesis - X)**2,1)]
 			recon += get_layer_diff(X,hypothesis,model)
 			label += [Y]
 	recon= torch.cat(recon).to('cpu')
 
 	Sord_list= torch.cat(Sord_list).to('cpu')
 
-#	Ssap_list = torch.cat(recon).to('cpu')
-	Ssap_list = torch.mean(recon**2,1)
+	Ssap_list = loss_fn(recon**2,1)
 
-	Snap_list = Snap(recon, mu, s, v)
+	Snap_list = Snap(recon, mu, s, v, loss_fn)
 
 	label = torch.cat(label).to('cpu')
 	Sord_auroc=roc_auc_score(label,Sord_list)
 	Ssap_auroc=roc_auc_score(label,Ssap_list)
 	Snap_auroc=roc_auc_score(label,Snap_list)
-	print("Test Sord auroc: {:.3f} Ssap auroc: {:.3f} Snap auroc: {:.3f}".format(Sord_auroc, Ssap_auroc, Snap_auroc))
+#	print("Test Sord auroc: {:.3f} Ssap auroc: {:.3f} Snap auroc: {:.3f}".format(Sord_auroc, Ssap_auroc, Snap_auroc))
 	if epoch != None:
 		writer.add_scalar('Valid/Sord AUROC score', round(Sord_auroc,3), epoch)
 		writer.add_scalar('Valid/Ssap AUROC score', round(Ssap_auroc,3), epoch)
@@ -117,6 +113,7 @@ def TEST(model, train_loader, test_loader, device, epoch=None,writer=None, valid
 		X = X.view(-1,1,28,28)
 		img_grid = torchvision.utils.make_grid(X)
 		writer.add_image('Test/mnist_images', img_grid,0)
+	return Sord_auroc, Ssap_auroc, Snap_auroc
 		
 
 def main():
@@ -136,6 +133,11 @@ def main():
 		
 	if device == 'cuda':		
 		torch.cuda.manual_seed_all(args.seed)
+
+	if args.loss_fn == 'sum':
+		loss_fn = torch.sum
+	else:
+		loss_fn = torch.mean
 		
 	train_data = MNIST(root='./', train=True, download=True, transform=ToTensor())
 	test_data = MNIST(root='./', train=False, download=True, transform=ToTensor())
@@ -143,10 +145,7 @@ def main():
 	train_dset = Dataset(train_data, test_data, normal=args.normal_class, train=True)
 	test_dset = Dataset(train_data, test_data, normal=args.normal_class, train=False)
 	
-	train_loader = torch.utils.data.DataLoader(dataset=train_dset,
-											  batch_size=args.batch_size,
-											  shuffle=True,
-											  drop_last=False)
+	train_loader = torch.utils.data.DataLoader(dataset=train_dset, batch_size=args.batch_size, shuffle=True, drop_last=False)
 	test_loader = torch.utils.data.DataLoader(dataset=test_dset,
 											  batch_size=args.batch_size,
 											  shuffle=False,
@@ -154,9 +153,13 @@ def main():
 	
 	model = AE(28*28).to(device)
 	
-	criterion = nn.MSELoss().to(device)
+	criterion = nn.MSELoss(reduction=args.loss_fn).to(device)
+#	criterion = nn.MSELoss().to(device)
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 		
+	Sord_list =[]
+	Ssap_list =[]
+	Snap_list =[]
 	if args.train == True:
 		total_batch = len(train_loader)
 		for epoch in range(args.epochs):
@@ -183,10 +186,13 @@ def main():
 			if (epoch+1)%args.test_interval ==0:
 				torch.save(model.state_dict(),'save_model/AE_'+str(epoch+1)+'.pth')
 				writer.add_scalar('Train/Avg Loss', round(avg_cost,7), epoch)
-				print("{}/{} Train Avg Loss: {}".format(epoch+1,args.epochs,avg_cost))
+#				print("{}/{} Train Avg Loss: {}".format(epoch+1,args.epochs,avg_cost))
 				
 				#Test
-				TEST(model, train_loader, test_loader, device, epoch=epoch, writer=writer, valid=True)
+				Sord, Ssap, Snap = TEST(model, train_loader, test_loader, device, epoch=epoch, writer=writer, valid=True, loss_fn=loss_fn)
+				Sord_list.append(Sord)
+				Ssap_list.append(Ssap)
+				Snap_list.append(Snap)
 		
 		torch.save(model.state_dict(),'save_model/model.pth')
 		
@@ -197,10 +203,12 @@ def main():
 		X = X.view(-1,1,28,28)
 		img_grid = torchvision.utils.make_grid(X)
 		writer.add_image('Training/mnist_images', img_grid,0)
+
+		print(max(Sord_list), max(Ssap_list), max(Snap_list))
 		
 	if args.test == True:  
 		model.load_state_dict(torch.load('save_model/'+str(args.load_model)))
-		TEST(model, train_loader, test_loader, device,writer=writer)
+		TEST(model, train_loader, test_loader, device,writer=writer, loss_fn=loss_fn)
 		
 
 					
