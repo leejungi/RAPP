@@ -1,8 +1,8 @@
 epoch=200
 loss_fn='sum'
 relu=0.1
-start_index=1
-end_index=-1
+start_index=0
+end_index=0
 
 echo "Epoch: "$epoch
 echo "Loss function: "$loss_fn
@@ -19,7 +19,8 @@ num=10
 declare -f ord
 declare -f sap
 declare -f nap
-for i in 0 1 2 3 4 5 6 7 8 9
+#for i in 0 1 2 3 4 5 6 7 8 9
+for i in 5 3 0 1 2 4 6 7 8 9
 do
 	score=$(python3 main.py --normal_class $i --epoch $epoch --loss_fn $loss_fn --relu $relu --start_index $start_index --end_index $end_index)
 	echo $i":"$score

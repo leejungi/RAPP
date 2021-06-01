@@ -5,8 +5,8 @@ import torch.nn as nn
 def block(in_size, out_size, relu=0.01, act=True):
 	if act == True:
 		return nn.Sequential( nn.Linear(in_size, out_size),
-							 nn.BatchNorm1d(out_size),
-							 nn.LeakyReLU(relu)
+							 nn.LeakyReLU(relu),
+							 nn.BatchNorm1d(out_size)
 			)
 	else:
 		return nn.Sequential( nn.Linear(in_size, out_size),
